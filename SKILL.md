@@ -1,6 +1,6 @@
 ---
-name: git-commit-logger
-displayName: "Git Commit Logger (Commit Index & Query CLI)"
+name: git-log-tracker
+displayName: "Git Log Tracker (Commit Index & Query CLI)"
 version: 0.1.0
 description: |
   Git post-commit hook + SQLite commit index tool. Automatically records every commit's metadata (hash, author, branch, repo, subject) into a local SQLite database, then provides a CLI to query, list, stats, delete, and update records.
@@ -8,7 +8,7 @@ description: |
   Use this skill whenever the user mentions commit logging, commit indexing, finding commits across repos, git hook management, or wants to query their commit history in a structured way — even if they don't explicitly name the tool.
 ---
 
-# Git Commit Logger
+# Git Log Tracker
 
 - **Author**: [LeeShunEE](https://github.com/LeeShunEE)
 - **Organization**: [KinemaClawWorkspace](https://github.com/KinemaClawWorkspace)
