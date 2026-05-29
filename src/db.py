@@ -1,4 +1,4 @@
-"""Shared database utilities for git-commit-logger."""
+"""Shared database utilities for git-log-tracker."""
 
 import sqlite3
 from pathlib import Path
@@ -32,12 +32,6 @@ CREATE INDEX IF NOT EXISTS idx_recorded_at ON commits(recorded_at);
 """
 
 
-def get_db_path(config_path: Path | None = None) -> Path:
-    if config_path is None:
-        return DEFAULT_DB_PATH
-    return config_path
-
-
 def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     if db_path is None:
         db_path = DEFAULT_DB_PATH
@@ -46,16 +40,3 @@ def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
     return conn
-
-
-def read_config(config_path: Path | None = None) -> dict:
-    if config_path is None:
-        config_path = DEFAULT_DB_DIR / "config.toml"
-    if not config_path.exists():
-        return {"hooks": {"exclude": []}, "database": {"path": "index.db"}}
-    try:
-        import tomllib
-    except ImportError:
-        import tomli as tomllib
-    with open(config_path, "rb") as f:
-        return tomllib.load(f)

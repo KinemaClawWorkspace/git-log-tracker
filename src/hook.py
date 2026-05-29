@@ -1,4 +1,4 @@
-"""Post-commit hook entry point for git-commit-logger.
+"""Post-commit hook logic for git-log-tracker.
 
 Called by .git/hooks/post-commit after each successful commit.
 Records commit metadata into SQLite index.
@@ -7,11 +7,10 @@ Records commit metadata into SQLite index.
 import fnmatch
 import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-from db import get_connection, read_config, DEFAULT_DB_DIR
+from config import read_config, is_excluded_repo
+from db import get_connection, DEFAULT_DB_DIR
 
 
 def get_repo_path() -> str:
@@ -20,15 +19,6 @@ def get_repo_path() -> str:
         capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     return result.stdout.strip()
-
-
-def is_excluded(repo_path: str, config: dict) -> bool:
-    excludes = config.get("hooks", {}).get("exclude", [])
-    normalized = repo_path.replace("\\", "/")
-    for pattern in excludes:
-        if fnmatch.fnmatch(normalized, pattern):
-            return True
-    return False
 
 
 def get_commit_info(repo_path: str | None = None) -> dict:
@@ -80,14 +70,17 @@ def get_commit_info(repo_path: str | None = None) -> dict:
     }
 
 
-def main():
+def record_commit(repo_path: str | None = None) -> bool:
+    """Record the latest commit to the database. Returns True if successful."""
     try:
         config = read_config()
-        repo_path = get_repo_path()
-        if is_excluded(repo_path, config):
-            return
+        if repo_path is None:
+            repo_path = get_repo_path()
 
-        info = get_commit_info()
+        if is_excluded_repo(repo_path, config):
+            return False
+
+        info = get_commit_info(repo_path)
         repo_name = Path(repo_path).name
 
         db_path_setting = config.get("database", {}).get("path", "index.db")
@@ -112,10 +105,17 @@ def main():
                 info["branch"], repo_path, repo_name, info["parent_hashes"],
             ))
             conn.commit()
+            return True
         finally:
             conn.close()
     except Exception as e:
-        print(f"[git-commit-logger] hook error: {e}", file=sys.stderr)
+        print(f"[git-log-tracker] hook error: {e}", file=sys.stderr)
+        return False
+
+
+def main():
+    """Entry point when called as CLI command (git-log-tracker hook)."""
+    record_commit()
     # Always exit 0 — never block the commit
 
 

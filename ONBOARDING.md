@@ -5,7 +5,7 @@
 
 ## Prerequisites | 前置条件
 
-- Python 3.11+（需要 `tomllib` 标准库支持）
+- Python 3.11+
 - `uv` 包管理器
 - Git
 
@@ -34,99 +34,64 @@ Agent 应使用 `AskUserQuestion` 工具询问用户的使用场景：
 
 ---
 
-### Step 1: 部署脚本到 ~/.commit-logs/
+### Step 1: 安装 CLI 工具
 
 **所有场景都需要执行此步骤。**
 
-#### 检测
+#### 安装方式
 
+从本地路径安装（作为 kinema_skills 组件的一部分）：
 ```bash
-test -f ~/.commit-logs/hook.py && echo "INSTALLED" || echo "NOT_INSTALLED"
+uv tool install D:/modular_dev/kinema_skills/git-log-tracker
 ```
 
-#### 安装
-
-将 `scripts/` 目录下的所有文件复制到 `~/.commit-logs/`：
-
+或使用相对路径（如果在 kinema_skills 目录下）：
 ```bash
-# 从 skill 仓库复制（agent 运行时替换 <skill_dir> 为实际路径）
-mkdir -p ~/.commit-logs
-cp <skill_dir>/scripts/hook.py ~/.commit-logs/
-cp <skill_dir>/scripts/db.py ~/.commit-logs/
-cp <skill_dir>/scripts/install.py ~/.commit-logs/
-cp <skill_dir>/scripts/query.py ~/.commit-logs/
-cp <skill_dir>/scripts/setup_global.py ~/.commit-logs/
+uv tool install ./git-log-tracker
 ```
 
-如果 `~/.commit-logs/config.toml` 不存在，复制默认配置：
+#### 验证安装
 
 ```bash
-test -f ~/.commit-logs/config.toml || cp <skill_dir>/scripts/config.toml ~/.commit-logs/config.toml
-```
-
-#### 验证
-
-```bash
-ls ~/.commit-logs/hook.py ~/.commit-logs/db.py ~/.commit-logs/install.py ~/.commit-logs/query.py ~/.commit-logs/setup_global.py
-# 应输出 5 个文件路径
+git-log-tracker --help
+# 期望: 显示帮助信息
+git-log-tracker --version
+# 期望: git-log-tracker 0.2.0
 ```
 
 ---
 
-### Step 2: 验证 Python 环境
+### Step 2: 初始化配置和数据库
 
 **所有场景都需要执行此步骤。**
 
-#### 检测
-
 ```bash
-python --version
-# 期望: Python 3.11.x 或更高
+git-log-tracker setup
 ```
 
-#### 安装
-
-如未安装 Python 3.11+：
-
-```bash
-uv python install 3.11
-```
+此命令会：
+- 创建 `~/.commit-logs/` 目录
+- 创建默认 `config.toml` 配置文件
+- 初始化 SQLite 数据库
 
 #### 验证
 
 ```bash
-uv run python ~/.commit-logs/query.py --help
-# 期望: 显示 query.py 帮助信息
-```
-
----
-
-### Step 3: 初始化数据库
-
-**所有场景都需要执行此步骤。**
-
-#### 检测
-
-```bash
-test -f ~/.commit-logs/index.db && echo "DB_EXISTS" || echo "NO_DB"
-```
-
-#### 安装
-
-数据库会在首次使用时自动创建，也可手动初始化：
-
-```bash
-uv run python -c "
-import sys; sys.path.insert(0, '$HOME/.commit-logs')
-from db import get_connection; get_connection(); print('DB initialized')
-"
-```
-
-#### 验证
-
-```bash
-uv run python ~/.commit-logs/query.py stats
+ls ~/.commit-logs/
+# 期望: config.toml, index.db
+git-log-tracker stats
 # 期望: Total commits: 0
+```
+
+---
+
+### Step 3: 验证环境
+
+**所有场景都需要执行此步骤。**
+
+```bash
+git-log-tracker stats
+# 期望: 显示统计信息（初始为 0 commits）
 ```
 
 ---
@@ -138,19 +103,19 @@ uv run python ~/.commit-logs/query.py stats
 #### 检测
 
 ```bash
-uv run python ~/.commit-logs/install.py --status .
+git-log-tracker status .
 ```
 
 #### 安装
 
 ```bash
-uv run python ~/.commit-logs/install.py .
+git-log-tracker install .
 ```
 
 #### 验证
 
 ```bash
-uv run python ~/.commit-logs/install.py --status .
+git-log-tracker status .
 # 期望: Status: installed [<repo_path>]
 ```
 
@@ -160,26 +125,41 @@ uv run python ~/.commit-logs/install.py --status .
 
 **仅当用户选择"全局模式"时执行此步骤。**
 
-使用 `setup_global.py` 配置 Git template 目录，使新 clone 的 repo 自动带上 hook：
+配置 Git template 目录，使新 clone 的 repo 自动带上 hook：
 
 #### 检测
 
 ```bash
-uv run python ~/.commit-logs/setup_global.py --status
+git config --global --get init.templateDir
 ```
 
 #### 安装
 
 ```bash
-uv run python ~/.commit-logs/setup_global.py
+git-log-tracker global
 ```
 
 #### 验证
 
 ```bash
-uv run python ~/.commit-logs/setup_global.py --status
-# 期望: Global template is configured
+git-log-tracker global --off  # 如需关闭
+git config --global --get init.templateDir
+# 期望: ~/.git-templates
 ```
+
+---
+
+## 数据存储位置
+
+安装后的数据存储结构：
+
+```
+~/.commit-logs/
+├── config.toml     # 配置文件（排除列表等）
+├── index.db        # SQLite 数据库
+```
+
+**代码不再存储在 ~/.commit-logs/，而是通过 uv tool install 安装为系统命令。**
 
 ---
 
@@ -187,9 +167,48 @@ uv run python ~/.commit-logs/setup_global.py --status
 
 | 错误 | 原因 | 解决方案 |
 |------|------|----------|
-| `No module named 'tomllib'` | Python < 3.11 | 安装 Python 3.11+ 或 `uv pip install tomli` |
+| `git-log-tracker: command not found` | 未安装工具 | `uv tool install D:/modular_dev/kinema_skills/git-log-tracker` |
+| `No module named 'tomllib'` | Python < 3.11 | 安装 Python 3.11+ |
 | `uv: command not found` | uv 未安装 | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | `Hook not triggering` | hook 文件无执行权限 | `chmod +x .git/hooks/post-commit` |
 | `database is locked` | 多进程并发写入 | 等待其他操作完成，SQLite 自动处理 |
 | `No commits found` | 数据库为空或排除规则过滤了 repo | 检查 `~/.commit-logs/config.toml` 中的 exclude 列表 |
 | `Multiple commits match prefix` | hash 前缀太短 | 使用更长的 hash 前缀或完整 hash |
+
+---
+
+## 升级方式
+
+从旧版本升级：
+
+1. **卸载旧 hook**（如果之前已安装）：
+   ```bash
+   # 如果之前使用 scripts/ 方式安装
+   rm ~/.commit-logs/hook.py ~/.commit-logs/db.py ~/.commit-logs/install.py ~/.commit-logs/query.py ~/.commit-logs/setup_global.py
+   rm -rf ~/.commit-logs/__pycache__
+   ```
+
+2. **重新安装 hook**（使用新 CLI）：
+   ```bash
+   git-log-tracker install .
+   ```
+
+3. **数据保留**：
+   - `~/.commit-logs/index.db` 和 `config.toml` 无需迁移，保持原样
+
+---
+
+## 版本管理
+
+**Skill 版本与 CLI 版本绑定，更新时需同步修改以下文件：**
+
+| 文件 | 版本位置 |
+|------|----------|
+| `pyproject.toml` | `version = "x.y.z"` |
+| `src/git_log_tracker/__init__.py` | `__version__ = "x.y.z"` |
+| `SKILL.md` | `version: x.y.z` (frontmatter) |
+
+更新版本后需要重新安装 CLI：
+```bash
+uv tool install D:/modular_dev/kinema_skills/git-log-tracker --force
+```
