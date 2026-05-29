@@ -1,6 +1,7 @@
-# Git Commit Logger Onboarding
+# Git Log Tracker Onboarding
 
-> 本文档指导 AI Agent 完成首次环境配置。按顺序执行，遇到问题时参考 Troubleshooting。
+> 本文档指导 AI Agent 以**交互式方式**完成首次环境配置。
+> Agent 应按顺序向用户提问，根据用户选择执行相应步骤。
 
 ## Prerequisites | 前置条件
 
@@ -8,15 +9,42 @@
 - `uv` 包管理器
 - Git
 
-## Step 1: 部署脚本到 ~/.commit-logs/
+## 交互流程
 
-### 检测
+### Step 0: 询问用户使用意图
+
+**必须先询问用户，不要自动执行！**
+
+Agent 应使用 `AskUserQuestion` 工具询问用户的使用场景：
+
+```
+您打算如何使用 Git Log Tracker？
+- 仅当前 repo
+- 多个 repo（手动安装到每个）
+- 全局模式（新 repo 自动带 hook）
+```
+
+根据用户选择，执行不同的步骤：
+
+| 用户选择 | 执行步骤 |
+|----------|----------|
+| 仅当前 repo | Step 1-4 |
+| 多个 repo | Step 1-3（完成后询问具体 repo 列表） |
+| 全局模式 | Step 1-3 + Step 5 |
+
+---
+
+### Step 1: 部署脚本到 ~/.commit-logs/
+
+**所有场景都需要执行此步骤。**
+
+#### 检测
 
 ```bash
 test -f ~/.commit-logs/hook.py && echo "INSTALLED" || echo "NOT_INSTALLED"
 ```
 
-### 安装
+#### 安装
 
 将 `scripts/` 目录下的所有文件复制到 `~/.commit-logs/`：
 
@@ -36,23 +64,27 @@ cp <skill_dir>/scripts/setup_global.py ~/.commit-logs/
 test -f ~/.commit-logs/config.toml || cp <skill_dir>/scripts/config.toml ~/.commit-logs/config.toml
 ```
 
-### 验证
+#### 验证
 
 ```bash
 ls ~/.commit-logs/hook.py ~/.commit-logs/db.py ~/.commit-logs/install.py ~/.commit-logs/query.py ~/.commit-logs/setup_global.py
 # 应输出 5 个文件路径
 ```
 
-## Step 2: 验证 Python 环境
+---
 
-### 检测
+### Step 2: 验证 Python 环境
+
+**所有场景都需要执行此步骤。**
+
+#### 检测
 
 ```bash
 python --version
 # 期望: Python 3.11.x 或更高
 ```
 
-### 安装
+#### 安装
 
 如未安装 Python 3.11+：
 
@@ -60,22 +92,26 @@ python --version
 uv python install 3.11
 ```
 
-### 验证
+#### 验证
 
 ```bash
 uv run python ~/.commit-logs/query.py --help
 # 期望: 显示 query.py 帮助信息
 ```
 
-## Step 3: 初始化数据库
+---
 
-### 检测
+### Step 3: 初始化数据库
+
+**所有场景都需要执行此步骤。**
+
+#### 检测
 
 ```bash
 test -f ~/.commit-logs/index.db && echo "DB_EXISTS" || echo "NO_DB"
 ```
 
-### 安装
+#### 安装
 
 数据库会在首次使用时自动创建，也可手动初始化：
 
@@ -86,33 +122,66 @@ from db import get_connection; get_connection(); print('DB initialized')
 "
 ```
 
-### 验证
+#### 验证
 
 ```bash
 uv run python ~/.commit-logs/query.py stats
 # 期望: Total commits: 0
 ```
 
-## Step 4: 安装 Hook 到当前 Repo
+---
 
-### 检测
+### Step 4: 安装 Hook 到当前 Repo
+
+**仅当用户选择"仅当前 repo"时执行此步骤。**
+
+#### 检测
 
 ```bash
 uv run python ~/.commit-logs/install.py --status .
 ```
 
-### 安装
+#### 安装
 
 ```bash
 uv run python ~/.commit-logs/install.py .
 ```
 
-### 验证
+#### 验证
 
 ```bash
 uv run python ~/.commit-logs/install.py --status .
 # 期望: Status: installed [<repo_path>]
 ```
+
+---
+
+### Step 5: 全局模式配置
+
+**仅当用户选择"全局模式"时执行此步骤。**
+
+使用 `setup_global.py` 配置 Git template 目录，使新 clone 的 repo 自动带上 hook：
+
+#### 检测
+
+```bash
+uv run python ~/.commit-logs/setup_global.py --status
+```
+
+#### 安装
+
+```bash
+uv run python ~/.commit-logs/setup_global.py
+```
+
+#### 验证
+
+```bash
+uv run python ~/.commit-logs/setup_global.py --status
+# 期望: Global template is configured
+```
+
+---
 
 ## Troubleshooting | 故障排除
 
