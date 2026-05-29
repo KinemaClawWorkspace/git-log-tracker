@@ -17,7 +17,7 @@ from db import get_connection, read_config, DEFAULT_DB_DIR
 def get_repo_path() -> str:
     result = subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
     )
     return result.stdout.strip()
 
@@ -48,7 +48,7 @@ def get_commit_info(repo_path: str | None = None) -> dict:
     cwd = repo_path if repo_path else None
     result = subprocess.run(
         ["git", "log", "-1", f"--format={fmt}"],
-        capture_output=True, text=True, cwd=cwd,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd,
     )
     lines = result.stdout.strip().split("\n")
     while len(lines) < 11:

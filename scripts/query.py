@@ -148,7 +148,7 @@ def cmd_record(args):
     else:
         result = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         if result.returncode != 0:
             print("Error: not in a git repository", file=sys.stderr)
