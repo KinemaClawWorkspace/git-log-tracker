@@ -1,7 +1,7 @@
 ---
 name: git-log-tracker
 displayName: "Git Log Tracker (Commit Index & Query CLI)"
-version: 0.3.0
+version: 0.4.0
 description: |
   Git post-commit hook + SQLite commit index tool. Automatically records every commit's metadata (hash, author, branch, repo, subject) into a local SQLite database, then provides a CLI to query, list, stats, delete, and update records.
   Trigger: managing git hooks, querying commit history across repos, finding which repo a commit belongs to, viewing commit statistics, recording commits to a local index.
@@ -100,6 +100,7 @@ git-log-tracker list --repo task-tracker  # 按仓库名筛选
 git-log-tracker list --author lee@example.com  # 按作者筛选
 git-log-tracker list --since 2025-01-01   # 按日期筛选
 git-log-tracker list --branch main        # 按分支筛选
+git-log-tracker list --label work         # 按仓库标签筛选
 ```
 
 `list` 输出为表格格式：`HASH | DATE | AUTHOR | REPO | SUBJECT`
@@ -108,7 +109,22 @@ git-log-tracker list --branch main        # 按分支筛选
 
 ```bash
 git-log-tracker stats
+git-log-tracker stats --label work        # 只统计带该标签的仓库
 ```
+
+### 标签管理
+
+给仓库打**仓库级标签**（label），用于按"组"过滤查询（如 work / personal）。标签是 `repo_path` 的属性，改标签立即对该仓库全部历史 commit 生效。
+
+```bash
+git-log-tracker label add . work               # 给当前仓库加 work 标签
+git-log-tracker label add /path/to/repo work personal  # 一次加多个标签
+git-log-tracker label rm . work                # 移除标签
+git-log-tracker label list .                   # 查看某仓库的标签
+git-log-tracker label list                     # 列出所有标签映射
+```
+
+标签存储在 `~/.commit-logs/labels.json`，结构为 `{ "归一化repo_path": ["label1", ...] }`。
 
 ### 数据修改
 
@@ -160,6 +176,7 @@ path = "index.db"
 ```
 ~/.commit-logs/          # 数据目录（不含代码）
 ├── config.toml          # 排除列表和数据库路径配置
+├── labels.json          # 仓库级标签映射（repo_path -> [labels]）
 ├── index.db             # SQLite 数据库
 
 .git/hooks/post-commit   # Hook 文件，调用 git-log-tracker hook

@@ -12,9 +12,15 @@ Git post-commit hook 自动写入 commit 元数据（hash、author、branch、re
 
 ### 跨仓库查询
 
-- 按 hash、仓库、作者、日期、分支筛选
+- 按 hash、仓库、作者、日期、分支、标签筛选
 - 支持前缀匹配查找 commit
 - 查找某个 commit 属于哪个仓库
+
+### 仓库标签
+
+- 给仓库打**仓库级标签**（label），按"组"过滤（如 work / personal）
+- `list --label` / `stats --label` 只显示带该标签的仓库
+- 标签即时对该仓库全部历史 commit 生效
 
 ### 统计与管理
 
@@ -85,8 +91,9 @@ git-log-tracker setup
 | `status <repo>` | 检查仓库 hook 状态 |
 | `global [--off]` | 配置全局 git 模板 |
 | `find <hash>` | 按 hash 查找 commit |
-| `list` | 列出最近的 commits |
-| `stats` | 显示统计信息 |
+| `list` | 列出最近的 commits（支持 `--label` 过滤） |
+| `stats` | 显示统计信息（支持 `--label` 过滤） |
+| `label add/rm/list [repo] [labels...]` | 管理仓库级标签 |
 | `record [repo]` | 手动记录最新 commit |
 | `delete <hash>` | 删除 commit 记录 |
 | `update <hash> <field> <value>` | 更新 commit 字段 |
@@ -105,6 +112,7 @@ git-log-tracker/
 │   ├── db.py             # SQLite 数据库操作
 │   ├── hook.py           # Hook 脚本
 │   └── pyproject.toml    # Python 项目配置
+│                         # 标签存储于 ~/.commit-logs/labels.json
 └── LICENSE               # GPLv3 许可证
 ```
 
