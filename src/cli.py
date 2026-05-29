@@ -11,9 +11,11 @@ Subcommands:
     record <repo>         Manually record commit
     delete <hash>         Delete commit record
     hook                  Run hook logic (called by post-commit)
+    reinstall             Reset and reinitialize data directory
 """
 
 import argparse
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -378,6 +380,29 @@ def cmd_setup(args):
     print("Setup complete.")
 
 
+def cmd_reinstall(args):
+    """Reset data directory and reinitialize."""
+    if DEFAULT_CONFIG_DIR.exists():
+        if args.keep_config:
+            # Only delete database
+            if DEFAULT_DB_PATH.exists():
+                DEFAULT_DB_PATH.unlink()
+                print(f"Deleted database: {DEFAULT_DB_PATH}")
+        else:
+            shutil.rmtree(DEFAULT_CONFIG_DIR)
+            print(f"Deleted data directory: {DEFAULT_CONFIG_DIR}")
+
+    # Reinitialize
+    config_path = ensure_config_exists()
+    print(f"Created config: {config_path}")
+
+    DEFAULT_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = get_connection()
+    conn.close()
+    print(f"Created database: {DEFAULT_DB_PATH}")
+    print("Reinstall complete.")
+
+
 # =============================================================================
 # Main CLI
 # =============================================================================
@@ -392,6 +417,10 @@ def main():
 
     # setup
     p_setup = sub.add_parser("setup", help="Initialize config and database")
+
+    # reinstall
+    p_reinstall = sub.add_parser("reinstall", help="Reset and reinitialize")
+    p_reinstall.add_argument("--keep-config", action="store_true", help="Keep config, only reset database")
 
     # install
     p_install = sub.add_parser("install", help="Install hook to a repo")
@@ -446,6 +475,8 @@ def main():
 
     if args.command == "setup":
         cmd_setup(args)
+    elif args.command == "reinstall":
+        cmd_reinstall(args)
     elif args.command == "install":
         cmd_install(args)
     elif args.command == "uninstall":
