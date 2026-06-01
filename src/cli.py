@@ -26,7 +26,7 @@ from config import (
     DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_PATH,
     add_label, remove_label, paths_for_label, labels_for_path, read_labels,
 )
-from db import get_connection, DEFAULT_DB_DIR, DEFAULT_DB_PATH
+from db import get_connection, get_schema_version, SCHEMA_VERSION, DEFAULT_DB_DIR, DEFAULT_DB_PATH
 from hook import get_commit_info, record_commit
 
 # Hook installation constants
@@ -501,6 +501,22 @@ def cmd_reinstall(args):
     print("Reinstall complete.")
 
 
+def cmd_migrate(args):
+    """Run database migrations."""
+    current = get_schema_version(DEFAULT_DB_PATH)
+    print(f"Current schema version: {current}")
+    print(f"Latest version: {SCHEMA_VERSION}")
+
+    if current >= SCHEMA_VERSION:
+        print("Database is up to date.")
+        return
+
+    print("Running migrations...")
+    conn = get_connection()
+    conn.close()
+    print(f"Migrated: {current} -> {SCHEMA_VERSION}")
+
+
 # =============================================================================
 # Main CLI
 # =============================================================================
@@ -519,6 +535,9 @@ def main():
     # reinstall
     p_reinstall = sub.add_parser("reinstall", help="Reset and reinitialize")
     p_reinstall.add_argument("--keep-config", action="store_true", help="Keep config, only reset database")
+
+    # migrate
+    sub.add_parser("migrate", help="Run database migrations")
 
     # install
     p_install = sub.add_parser("install", help="Install hook to a repo")
@@ -583,6 +602,8 @@ def main():
         cmd_setup(args)
     elif args.command == "reinstall":
         cmd_reinstall(args)
+    elif args.command == "migrate":
+        cmd_migrate(args)
     elif args.command == "install":
         cmd_install(args)
     elif args.command == "uninstall":
