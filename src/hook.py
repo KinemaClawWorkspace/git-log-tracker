@@ -22,6 +22,8 @@ def get_repo_path() -> str:
 
 
 def get_commit_info(repo_path: str | None = None) -> dict:
+    # body (%b) 可能跨多行，必须放在格式串末尾，否则其后的字段会被 body 的
+    # 额外行挤位，导致 parent_hashes / ref names 解析错位（branch 丢失）。
     fmt = (
         "%H%n"      # full hash
         "%h%n"      # short hash
@@ -31,29 +33,29 @@ def get_commit_info(repo_path: str | None = None) -> dict:
         "%cn%n"     # committer name
         "%ce%n"     # committer email
         "%s%n"      # subject
-        "%b%n"      # body
         "%P%n"      # parent hashes
-        "%D"        # ref names
+        "%D%n"      # ref names
+        "%b"        # body（放最后，允许多行）
     )
     cwd = repo_path if repo_path else None
     result = subprocess.run(
         ["git", "log", "-1", f"--format={fmt}"],
         capture_output=True, text=True, encoding="utf-8", errors="replace", cwd=cwd,
     )
-    lines = result.stdout.strip().split("\n")
+    lines = result.stdout.split("\n")
     while len(lines) < 11:
         lines.append("")
 
     branch = None
-    ref_names = lines[10] if len(lines) > 10 else ""
+    ref_names = lines[9]
     for ref in ref_names.split(","):
         ref = ref.strip()
         if ref.startswith("HEAD -> "):
             branch = ref[len("HEAD -> "):]
             break
 
-    body = lines[8] if len(lines) > 8 else ""
-    parent_hashes = lines[9] if len(lines) > 9 else ""
+    parent_hashes = lines[8].strip()
+    body = "\n".join(lines[10:]).strip()
 
     return {
         "commit_hash": lines[0],
