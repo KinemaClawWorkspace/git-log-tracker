@@ -6,30 +6,26 @@ from pathlib import Path
 DEFAULT_DB_DIR = Path.home() / ".commit-logs"
 DEFAULT_DB_PATH = DEFAULT_DB_DIR / "index.db"
 
-SCHEMA = """
-CREATE TABLE IF NOT EXISTS commits (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    commit_hash     TEXT NOT NULL UNIQUE,
-    short_hash      TEXT NOT NULL,
-    author_name     TEXT NOT NULL,
-    author_email    TEXT NOT NULL,
-    author_ts       TEXT NOT NULL,
-    committer_name  TEXT,
-    committer_email TEXT,
-    commit_subject  TEXT NOT NULL,
-    commit_body     TEXT,
-    branch          TEXT,
-    repo_path       TEXT NOT NULL,
-    repo_name       TEXT NOT NULL,
-    parent_hashes   TEXT,
-    recorded_at     TEXT NOT NULL DEFAULT (datetime('now'))
-);
+SCHEMA_VERSION = 1
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_commit_hash ON commits(commit_hash);
-CREATE INDEX IF NOT EXISTS idx_repo_path ON commits(repo_path);
-CREATE INDEX IF NOT EXISTS idx_author_email ON commits(author_email);
-CREATE INDEX IF NOT EXISTS idx_recorded_at ON commits(recorded_at);
-"""
+
+def _run_alembic_upgrade(db_path: Path) -> None:
+    from alembic.config import Config
+    from alembic import command
+
+    migrations_dir = Path(__file__).parent / "migrations"
+    cfg = Config()
+    cfg.set_main_option("script_location", str(migrations_dir))
+    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
+    command.upgrade(cfg, "head")
+
+
+def get_schema_version(db_path: Path) -> int:
+    conn = sqlite3.connect(str(db_path))
+    try:
+        return conn.execute("PRAGMA user_version").fetchone()[0]
+    finally:
+        conn.close()
 
 
 def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
@@ -38,5 +34,13 @@ def get_connection(db_path: Path | None = None) -> sqlite3.Connection:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
-    conn.executescript(SCHEMA)
+
+    current = conn.execute("PRAGMA user_version").fetchone()[0]
+    if current < SCHEMA_VERSION:
+        conn.close()
+        _run_alembic_upgrade(db_path)
+        conn = sqlite3.connect(str(db_path))
+        conn.row_factory = sqlite3.Row
+        conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
     return conn
