@@ -1,9 +1,11 @@
 {
   "name": "git-log-tracker",
+  "displayName": "Git Log Tracker (Commit Index & Query CLI)",
   "version": "0.5.1",
   "description": "Git post-commit hook + SQLite commit index tool. 自动记录每次 commit 元数据,支持跨仓库查询、统计和管理。",
   "author": { "name": "LeeShunEE", "url": "https://github.com/LeeShunEE" },
   "homepage": "https://github.com/KinemaClawWorkspace/git-log-tracker",
   "repository": "https://github.com/KinemaClawWorkspace/git-log-tracker",
+  "license": "GPL-3.0",
   "keywords": ["git", "commit", "sqlite", "hook", "tracking", "index"]
 }

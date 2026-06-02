@@ -239,3 +239,7 @@ __marimo__/
 .streamlit/secrets.toml
 .codegraph
 bash.exe.stackdump
+
+# ClawHub / OpenClaw CLI cache & artifacts
+.clawhub/
+skills/

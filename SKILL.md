@@ -16,14 +16,14 @@ description: |
 
 ## ⚠️ Before First Use | 首次使用必读
 
-**首次使用此 skill 前，必须先读取 [ONBOARDING.md](ONBOARDING.md) 完成环境配置。**
+**首次使用此 skill 前，必须先读取 [references/ONBOARDING.md](references/ONBOARDING.md) 完成环境配置。**
 
-ONBOARDING.md 采用**交互式流程**：
+references/ONBOARDING.md 采用**交互式流程**：
 - **Agent 必须先询问用户使用意图**（仅当前 repo / 多个 repo / 全局模式）
 - **根据用户选择执行相应步骤**，切勿自动执行全部命令
 
-- **首次配置** → 读取 ONBOARDING.md，按 Step 0 询问用户后执行
-- **环境不可用**（命令不存在、依赖缺失、连接失败）→ 读取 ONBOARDING.md Troubleshooting 排查修复
+- **首次配置** → 读取 references/ONBOARDING.md，按 Step 0 询问用户后执行
+- **环境不可用**（命令不存在、依赖缺失、连接失败）→ 读取 references/ONBOARDING.md Troubleshooting 排查修复
 - **配置完成后** → 直接使用下方 Run Commands
 
 ## Overview
