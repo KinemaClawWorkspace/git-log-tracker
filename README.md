@@ -89,6 +89,7 @@ git-log-tracker setup
 | `install <repo>` | 安装 hook 到指定仓库 |
 | `uninstall <repo>` | 从指定仓库移除 hook |
 | `status <repo>` | 检查仓库 hook 状态 |
+| `scan <path> [--depth] [--install-missing] [--interactive] [--exclude]` | 扫描目录中的 git 仓库，批量管理 hook |
 | `global [--off]` | 配置全局 git 模板 |
 | `find <hash>` | 按 hash 查找 commit |
 | `list` | 列出最近的 commits（支持 `--label` 过滤） |

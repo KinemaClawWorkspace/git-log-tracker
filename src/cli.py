@@ -4,6 +4,7 @@ Subcommands:
     install <repo>        Install hook to repo
     uninstall <repo>      Remove hook from repo
     status <repo>         Check hook status
+    scan <path>           Scan directory for git repositories
     global                Configure global git template
     find <hash>           Find commit by hash
     list                  List recent commits
@@ -15,6 +16,7 @@ Subcommands:
 """
 
 import argparse
+import fnmatch
 import shutil
 import subprocess
 import sys
@@ -136,6 +138,266 @@ def cmd_status(args):
         print(f"Status: installed [{repo}]")
     else:
         print(f"Status: not installed (post-commit exists but no marker) [{repo}]")
+
+
+# =============================================================================
+# Scan commands
+# =============================================================================
+
+def contains_marker(hook_path: Path) -> bool:
+    """Check if post-commit hook contains git-log-tracker marker."""
+    if not hook_path.exists():
+        return False
+    content = hook_path.read_text(encoding="utf-8", errors="replace")
+    return MARKER_BEGIN in content
+
+
+def get_current_branch(repo_path: Path) -> tuple[str, int]:
+    """Get current branch and total branch count for a repo.
+
+    Returns:
+        (current_branch, total_branch_count)
+    """
+    try:
+        # Get current branch
+        result = subprocess.run(
+            ["git", "branch", "--show-current"],
+            cwd=repo_path,
+            capture_output=True, text=True, timeout=2,
+        )
+        current = result.stdout.strip() or "(detached)"
+
+        # Get all branches
+        result = subprocess.run(
+            ["git", "branch", "--list"],
+            cwd=repo_path,
+            capture_output=True, text=True, timeout=2,
+        )
+        branches = [b.strip() for b in result.stdout.strip().split('\n') if b.strip()]
+        total = len(branches)
+
+        return current, total
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError):
+        return "(unknown)", 0
+
+
+def scan_git_repos(base_path: Path, max_depth: int = 5, exclude_patterns: list = None) -> list[dict]:
+    """Recursively scan directory for git repositories.
+
+    Args:
+        base_path: Root directory to start scanning
+        max_depth: Maximum directory depth to scan
+        exclude_patterns: fnmatch patterns to exclude repos
+
+    Returns:
+        List of dicts with keys: path, hook_installed, current_branch, branch_count
+    """
+    repos = []
+    exclude_patterns = exclude_patterns or []
+
+    def scan_dir(current: Path, depth: int):
+        if depth > max_depth:
+            return
+
+        # Skip .git directories themselves
+        if current.name == ".git":
+            return
+
+        # Check if this is a git repo
+        git_dir = current / ".git"
+        if git_dir.exists():
+            # Apply exclude patterns
+            path_str = str(current).replace("\\", "/")
+            if any(fnmatch.fnmatch(path_str, pattern) for pattern in exclude_patterns):
+                return
+
+            # Check hook status
+            post_commit = git_dir / "hooks" / "post-commit"
+            hook_installed = contains_marker(post_commit)
+
+            # Get branch info
+            current_branch, branch_count = get_current_branch(current)
+
+            repos.append({
+                "path": current,
+                "hook_installed": hook_installed,
+                "current_branch": current_branch,
+                "branch_count": branch_count,
+            })
+            return  # Don't scan subdirectories of a git repo
+
+        # Recurse into subdirectories
+        try:
+            for child in current.iterdir():
+                if child.is_dir() and not child.name.startswith('.'):
+                    scan_dir(child, depth + 1)
+        except PermissionError:
+            pass
+
+    scan_dir(base_path, 0)
+    return repos
+
+
+def print_scan_table(repos: list[dict]):
+    """Print scan results as formatted table."""
+    # Calculate column widths
+    max_path_len = max(len(str(r["path"])) for r in repos) if repos else 20
+    path_width = min(max_path_len, 50)  # Cap at 50
+
+    # Use ASCII-compatible characters for Windows compatibility
+    h_line = "-" * (path_width + 2)
+    v_line = "|"
+
+    # Header
+    print(f"\n+{h_line}+{'-' * 14}+{'-' * 20}+")
+    print(f"| {'Repo Path'.ljust(path_width)} | {'Hook Status'.ljust(12)} | {'Branches'.ljust(18)} |")
+    print(f"+{h_line}+{'-' * 14}+{'-' * 20}+")
+
+    # Rows
+    for repo in repos:
+        path_str = str(repo["path"])
+        if len(path_str) > path_width:
+            path_str = path_str[:path_width - 3] + "..."
+
+        # Use ASCII-compatible status symbols
+        status = "[OK]" if repo["hook_installed"] else "[--]"
+        branch_str = f"{repo['current_branch']} ({repo['branch_count']})"
+
+        print(f"| {path_str.ljust(path_width)} | {status.ljust(12)} | {branch_str.ljust(18)} |")
+
+    # Footer
+    print(f"+{h_line}+{'-' * 14}+{'-' * 20}+")
+
+
+def interactive_select(repos: list[dict]) -> list[dict]:
+    """Interactive selection of repositories to install hook.
+
+    Returns:
+        List of selected repo dicts
+    """
+    print("\nSelect repositories to install hook:")
+    print("  Enter numbers separated by spaces (e.g., '1 3 5')")
+    print("  Enter 'all' to select all")
+    print("  Enter 'none' to skip")
+
+    for i, repo in enumerate(repos, 1):
+        branch_str = f"{repo['current_branch']}, [--]"
+        print(f"  [{i}] {repo['path']} ({branch_str})")
+
+    try:
+        answer = input("\nYour choice: ").strip().lower()
+        if answer == "none":
+            return []
+        if answer == "all":
+            return repos
+
+        indices = [int(x) for x in answer.split()]
+        selected = [repos[i - 1] for i in indices if 1 <= i <= len(repos)]
+        return selected
+    except (ValueError, IndexError, EOFError, KeyboardInterrupt):
+        print("\nInvalid input or interrupted. Skipping.")
+        return []
+
+
+def install_hook_to_repo(repo_path: Path) -> bool:
+    """Install hook to a repository. Returns True if successful."""
+    try:
+        hooks_dir = repo_path / ".git" / "hooks"
+        hooks_dir.mkdir(parents=True, exist_ok=True)
+        hook_file = hooks_dir / "post-commit"
+
+        hook_lines = f"""
+{MARKER_BEGIN}
+git-log-tracker hook
+{MARKER_END}
+"""
+
+        if hook_file.exists():
+            content = hook_file.read_text(encoding="utf-8", errors="replace")
+            if MARKER_BEGIN in content:
+                return True  # Already installed
+
+            with open(hook_file, "a", encoding="utf-8") as f:
+                f.write(hook_lines)
+        else:
+            hook_file.write_text(get_hook_content(), encoding="utf-8")
+
+        return True
+    except Exception as e:
+        print(f"  [FAIL] {repo_path}: {e}", file=sys.stderr)
+        return False
+
+
+def cmd_scan(args):
+    """Scan directory for git repositories and optionally install hooks."""
+    base_path = Path(args.path).resolve()
+    if not base_path.exists():
+        print(f"Error: Path does not exist: {base_path}", file=sys.stderr)
+        return 1
+
+    print(f"Scanning {base_path} for git repositories (depth={args.depth})...")
+    repos = scan_git_repos(base_path, args.depth, args.exclude)
+
+    if not repos:
+        print("No git repositories found.")
+        return 0
+
+    # Display results
+    installed_count = sum(1 for r in repos if r["hook_installed"])
+    missing_count = len(repos) - installed_count
+
+    print(f"\nFound {len(repos)} repositories:")
+    print_scan_table(repos)
+
+    print(f"\nSummary: {installed_count} installed, {missing_count} missing")
+
+    # Handle actions
+    if args.install_missing:
+        missing_repos = [r for r in repos if not r["hook_installed"]]
+        if not missing_repos:
+            print("All repositories already have hooks installed.")
+            return 0
+
+        print(f"\n{len(missing_repos)} repositories missing hook.")
+        try:
+            answer = input("Install to all? [y/N]: ").strip().lower()
+            if answer != 'y' and answer != 'yes':
+                print("Cancelled.")
+                return 0
+        except (EOFError, KeyboardInterrupt):
+            print("\nCancelled.")
+            return 0
+
+        print(f"\nInstalling hooks to {len(missing_repos)} repositories...")
+        success_count = 0
+        for repo in missing_repos:
+            if install_hook_to_repo(repo["path"]):
+                print(f"  [OK] {repo['path']}")
+                success_count += 1
+
+        print(f"\nDone. {success_count}/{len(missing_repos)} installed successfully.")
+
+    elif args.interactive:
+        missing_repos = [r for r in repos if not r["hook_installed"]]
+        if not missing_repos:
+            print("All repositories already have hooks installed.")
+            return 0
+
+        selected = interactive_select(missing_repos)
+        if not selected:
+            print("No repositories selected.")
+            return 0
+
+        print(f"\nInstalling hooks to {len(selected)} repositories...")
+        success_count = 0
+        for repo in selected:
+            if install_hook_to_repo(repo["path"]):
+                print(f"  [OK] Installed to {repo['path']}")
+                success_count += 1
+
+        print(f"\nDone. {success_count}/{len(selected)} installed successfully.")
+
+    return 0
 
 
 # =============================================================================
@@ -551,6 +813,18 @@ def main():
     p_status = sub.add_parser("status", help="Check hook status in a repo")
     p_status.add_argument("repo", help="Path to git repo")
 
+    # scan
+    p_scan = sub.add_parser("scan", help="Scan directory for git repositories")
+    p_scan.add_argument("path", help="Directory to scan for git repositories")
+    p_scan.add_argument("--depth", type=int, default=5,
+                        help="Maximum directory depth to scan (default: 5)")
+    p_scan.add_argument("--install-missing", action="store_true",
+                        help="Install hook to all repositories missing it")
+    p_scan.add_argument("--interactive", action="store_true",
+                        help="Interactive mode: select repos to install")
+    p_scan.add_argument("--exclude", action="append", default=[],
+                        help="Exclude patterns (fnmatch style, can use multiple times)")
+
     # global
     p_global = sub.add_parser("global", help="Configure global git template")
     p_global.add_argument("--off", action="store_true", help="Disable global mode")
@@ -610,6 +884,8 @@ def main():
         cmd_uninstall(args)
     elif args.command == "status":
         cmd_status(args)
+    elif args.command == "scan":
+        cmd_scan(args)
     elif args.command == "global":
         cmd_global(args)
     elif args.command == "find":

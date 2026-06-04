@@ -22,6 +22,7 @@ Agent 应使用 `AskUserQuestion` 工具询问用户的使用场景：
 - 仅当前 repo
 - 多个 repo（手动安装到每个）
 - 全局模式（新 repo 自动带 hook）
+- 批量扫描已有仓库并安装
 ```
 
 根据用户选择，执行不同的步骤：
@@ -31,6 +32,7 @@ Agent 应使用 `AskUserQuestion` 工具询问用户的使用场景：
 | 仅当前 repo | Step 1-4 |
 | 多个 repo | Step 1-3（完成后询问具体 repo 列表） |
 | 全局模式 | Step 1-3 + Step 5 |
+| 批量扫描已有仓库 | Step 1-3 + Step 6 |
 
 ---
 
@@ -149,6 +151,72 @@ git config --global --get init.templateDir
 
 ---
 
+### Step 6: 批量扫描已有仓库
+
+**仅当用户选择"批量扫描已有仓库"时执行此步骤。**
+
+> ⚠️ **重要提示**：全局模式（Step 5）只会影响**后续创建或 clone 的仓库**，已有仓库不会自动注入 hook。
+> 使用 `scan` 命令可以批量扫描并安装已有仓库的 hook。
+
+#### 扫描目录
+
+```bash
+# 扫描指定目录（默认深度 5）
+git-log-tracker scan D:/modular_dev
+
+# 控制扫描深度
+git-log-tracker scan D:/modular_dev --depth 3
+```
+
+输出示例：
+```
+Scanning D:\modular_dev for git repositories (depth=3)...
+
+Found 8 repositories:
++----------------------------------------------------+--------------+--------------------+
+| Repo Path                                          | Hook Status  | Branches           |
++----------------------------------------------------+--------------+--------------------+
+| D:\modular_dev\kinema_skills\git-log-tracker       | [OK]         | master (1)         |
+| D:\modular_dev\other_project                       | [--]         | main (1)           |
++----------------------------------------------------+--------------+--------------------+
+
+Summary: 1 installed, 1 missing
+```
+
+#### 批量安装
+
+扫描后可选择批量安装：
+
+```bash
+# 自动安装所有缺失 hook（需确认）
+git-log-tracker scan D:/modular_dev --install-missing
+
+# 交互式选择安装（选择具体仓库）
+git-log-tracker scan D:/modular_dev --interactive
+
+# 排除特定路径
+git-log-tracker scan D:/modular_dev --exclude "*/temp/*" --exclude "*/.cache/*"
+```
+
+#### 常见场景
+
+| 场景 | 命令 |
+|------|------|
+| 扫描工作目录下所有仓库 | `git-log-tracker scan ~/work --depth 4` |
+| 扫描并安装所有缺失 hook | `git-log-tracker scan ~/work --install-missing` |
+| 排除临时目录后扫描 | `git-log-tracker scan ~/work --exclude "*/tmp/*"` |
+| 交互式选择安装 | `git-log-tracker scan ~/work --interactive` |
+
+#### 验证
+
+```bash
+# 重新扫描验证安装状态
+git-log-tracker scan D:/modular_dev
+# 期望: Summary 显示全部 installed
+```
+
+---
+
 ## 数据存储位置
 
 安装后的数据存储结构：
@@ -174,6 +242,8 @@ git config --global --get init.templateDir
 | `database is locked` | 多进程并发写入 | 等待其他操作完成，SQLite 自动处理 |
 | `No commits found` | 数据库为空或排除规则过滤了 repo | 检查 `~/.commit-logs/config.toml` 中的 exclude 列表 |
 | `Multiple commits match prefix` | hash 前缀太短 | 使用更长的 hash 前缀或完整 hash |
+| `scan: No git repositories found` | 目录下无 git 仓库或深度不足 | 增加 `--depth` 或检查路径是否正确 |
+| `scan: Permission denied` | 目录权限不足 | 检查目录访问权限 |
 
 ---
 

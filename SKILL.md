@@ -66,6 +66,32 @@ git-log-tracker status .
 git-log-tracker uninstall /path/to/repo
 ```
 
+扫描目录中的 git 仓库：
+
+```bash
+git-log-tracker scan /path/to/directory                     # 扫描并列出仓库
+git-log-tracker scan /path/to/directory --depth 3           # 控制扫描深度
+git-log-tracker scan /path/to/directory --install-missing   # 自动安装缺失 hook 的仓库
+git-log-tracker scan /path/to/directory --interactive       # 交互式选择安装
+git-log-tracker scan /path/to/directory --exclude "*/temp/*" --exclude "*/.cache/*"  # 排除路径
+```
+
+`scan` 输出示例：
+```
+Scanning D:\modular_dev for git repositories (depth=5)...
+
+Found 15 repositories:
++----------------------------------------------------+--------------+--------------------+
+| Repo Path                                          | Hook Status  | Branches           |
++----------------------------------------------------+--------------+--------------------+
+| D:\modular_dev\kinema_skills                       | [OK]         | main (3)           |
+| D:\modular_dev\other_project                       | [--]         | master (1)         |
+| D:\modular_dev\legacy_app                          | [--]         | develop (5)        |
++----------------------------------------------------+--------------+--------------------+
+
+Summary: 1 installed, 2 missing
+```
+
 全局模式（新 repo 自动带 hook）：
 
 ```bash
